@@ -87,3 +87,39 @@ This is the same behaviour observed with the Maven Shade-built JAR
 as stated in the worksheet's "Expected application output". Since the exact
 same src/ was used for both builds, this confirms the discrepancy comes from
 the application logic (FleetService), not from Maven or Gradle.
+
+### Evidence 8.5 – Gradle GitHub Actions run
+
+https://github.com/yAleex/FleetCheck_Gradle/actions/runs/36558894471
+
+### Evidence 8.6 – SBOM contains undeclared dependencies (Gradle)
+
+`build/reports/cyclonedx/bom.json` contains: jackson-databind, jackson-core
+and jackson-annotations (plus a reference to jackson-bom), even though
+build.gradle only declares jackson-databind directly.
+
+The CycloneDX plugin builds the SBOM from Gradle's fully resolved dependency
+graph (the same one shown by `gradle dependencies`), not from the raw
+declarations in build.gradle. Since jackson-databind transitively pulls in
+jackson-core and jackson-annotations at build/run time, those artifacts are
+part of what actually ships with the application, so the SBOM must list them
+too — an accurate bill of materials has to reflect every component present in
+the final artifact, not just what a developer typed by hand. This matches
+the Maven SBOM result from Step 7 (Evidence 7): same components, same reason.
+
+### Final question
+
+The software did not change. The exact same src/ (App.java, FleetService.java,
+Vehicle.java, vehicles.json) was used for both builds. Both Maven and Gradle
+resolved the same dependencies (jackson-databind 2.22.2, with the same two
+transitive dependencies), failed for the same reason when Jackson was missing,
+produced a working fat/uber JAR once configured, and reported the same
+behavioural output (4 vehicles loaded, 1 requiring service, average 37000 km).
+
+What changed was only the build process: how dependencies are declared
+(XML vs Groovy DSL), how the build is invoked (mvn/mvnw vs gradle/gradlew),
+how the executable JAR is assembled (Shade plugin vs application plugin +
+custom jar task), and how the build is reproduced and automated (Maven
+Wrapper + GitHub Actions build.yml vs Gradle Wrapper + build-gradle.yml).
+The build system is a different tool wrapped around the same application;
+it does not alter what the application does.
